@@ -1,0 +1,26 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "com.stockmarketscan/mcp-server",
+  "title": "StockMarketScan",
+  "description": "18 tools for US stock screeners, chart patterns, options flow signals and equities research.",
+  "version": "1.0.2",
+  "repository": {
+    "url": "https://github.com/stockmarketscan/mcp-server",
+    "source": "github"
+  },
+  "websiteUrl": "https://stockmarketscan.com/mcp",
+  "remotes": [
+    {
+      "type": "sse",
+      "url": "https://mcp.stockmarketscan.com/mcp",
+      "headers": [
+        {
+          "name": "X-API-Key",
+          "description": "Your personal StockMarketScan API key (sms_*). Generate at https://stockmarketscan.com/settings — requires a Basic or Pro plan.",
+          "isRequired": true,
+          "isSecret": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,9 @@
+node_modules/
+dist/
+*.log
+.env
+.env.*
+!.env.example
+.DS_Store
+*.pem
+# Already listed above, just to be safe

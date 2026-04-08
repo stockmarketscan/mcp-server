@@ -1,0 +1,58 @@
+name: stockmarketscan
+displayName: StockMarketScan
+description: |
+  Stock screeners, chart patterns, options flow signals, unusual options activity,
+  market momentum, and trend monitor — 18 tools for US equities research, straight
+  inside your LLM client. BYOK (Bring Your Own Key) — requires a Basic or Pro plan
+  at stockmarketscan.com.
+homepage: https://stockmarketscan.com/mcp
+repository: https://github.com/stockmarketscan/mcp-server
+license: MIT
+categories:
+  - finance
+  - data-access
+  - research
+tags:
+  - stocks
+  - stock-market
+  - screeners
+  - chart-patterns
+  - options-flow
+  - technical-analysis
+  - unusual-options-activity
+  - trend-monitor
+  - equities
+  - us-stocks
+
+# Remote HTTP/SSE server — Smithery just lists it, doesn't host it.
+runtime: remote
+remote:
+  url: https://mcp.stockmarketscan.com/mcp
+  transport: sse
+
+# Config schema — fields the consumer must provide.
+configSchema:
+  type: object
+  required:
+    - apiKey
+  properties:
+    apiKey:
+      type: string
+      title: StockMarketScan API Key
+      description: >-
+        Your personal StockMarketScan API key (starts with sms_). Generate one
+        at https://stockmarketscan.com/settings — requires a Basic or Pro plan.
+      format: password
+
+# How Smithery passes the key to the server.
+headers:
+  X-API-Key: "{{apiKey}}"
+
+# Example prompts that showcase the server.
+examplePrompts:
+  - "Which stocks are in both hot-prospects and golden-cross today?"
+  - "Show me AMD's options flow history for the last 30 days."
+  - "Find stocks in hot-prospects that are forming a cup and handle pattern."
+  - "Build a full stock report for NVDA — screeners, patterns, options flow, market context."
+  - "What are today's strongest bullish options flow signals?"
+  - "Which contracts traded today at vol/OI > 3 with over $1M premium?"

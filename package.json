@@ -1,0 +1,29 @@
+{
+  "name": "stockmarketscan-mcp-server",
+  "version": "1.0.1",
+  "description": "MCP server exposing StockMarketScan screeners, chart patterns, options flow signals and equities research as tools for Claude Desktop, Cursor, Continue and any other MCP client.",
+  "license": "MIT",
+  "homepage": "https://stockmarketscan.com/mcp",
+  "main": "dist/server.js",
+  "type": "commonjs",
+  "scripts": {
+    "build": "tsc",
+    "start": "node dist/server.js",
+    "dev": "tsx watch src/server.ts",
+    "dev:http": "MCP_TRANSPORT=http MCP_PORT=3333 tsx watch src/server.ts"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.29.0",
+    "express": "^5.2.1",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/express": "^5.0.6",
+    "@types/node": "^20",
+    "tsx": "^4.21.0",
+    "typescript": "^5"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}
