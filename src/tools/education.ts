@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { McpContext } from "../context";
 import { McpError } from "../errors";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
 
 export const ExplainConceptInputSchema = z.object({
   term: z
@@ -109,6 +110,7 @@ export const educationTools: Tool[] = [
     description:
       "Return a plain-language explanation of a platform-specific term, metric, or screener. Use ONLY for terms that are specific to StockMarketScan (e.g. 'strength_score' which is our internal scoring, or 'hot_prospects' which is our curated screener). Do NOT use for generic finance terms the model already knows — answer those directly. Returns { term, title, explanation, interpretation, related_terms }.",
     inputSchema: z.toJSONSchema(ExplainConceptInputSchema) as Tool["inputSchema"],
+    annotations: { ...READ_ONLY_ANNOTATIONS, openWorldHint: false },
   },
 ];
 

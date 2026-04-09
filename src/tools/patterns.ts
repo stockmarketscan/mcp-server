@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { McpContext } from "../context";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
 
 const symbolRegex = /^[A-Z0-9.^=\-]{1,20}$/;
 
@@ -32,12 +33,14 @@ export const patternsTools: Tool[] = [
     description:
       "Return all chart patterns currently detected for a single stock symbol. Covers 25+ patterns including head_shoulders, cup_handle, wedge_rising/falling, asc/desc/sym_triangle, double_top/bottom, channel_up/down, cup_handle, harmonic patterns (gartley, butterfly, bat, crab). Use when the user asks 'what patterns does X have' or 'is X forming a head and shoulders'. Returns { symbol, interval, computedAt, candleCount, patterns: [...] }. Empty patterns array if none detected.",
     inputSchema: z.toJSONSchema(GetChartPatternsInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "search_patterns",
     description:
       "Find all stocks across one or more screeners that currently exhibit specific chart patterns. Much faster than calling get_chart_patterns in a loop. Use when the user asks 'which stocks have a cup and handle' or 'find me hot prospects with bullish reversal patterns'. Returns { screeners_queried, patterns_queried, interval, count, matches: [...] }.",
     inputSchema: z.toJSONSchema(SearchPatternsInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
 ];
 

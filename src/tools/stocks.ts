@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { McpContext } from "../context";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
 
 const symbolRegex = /^[A-Z0-9.^=\-]{1,20}$/;
 
@@ -27,12 +28,14 @@ export const stockTools: Tool[] = [
     description:
       "Return basic metadata for a stock — full company name, exchange, industry, last close price, and percent change. Use this when you first encounter a symbol and need to identify it. Lighter than get_stock_report (composite) or get_candles (full history). Returns { symbol, symbol_name, last_price, percent_change, exchange, industry }. Returns NOT_FOUND for unknown tickers.",
     inputSchema: z.toJSONSchema(GetStockInfoInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "get_candles",
     description:
       "Return OHLCV price candles for a single stock. Use when you need price history to compute indicators or answer 'how much is X up this month'. time is a Unix epoch in seconds (UTC midnight for daily). Default range is 6mo. Use larger ranges like '1y' or '2y' only when the user explicitly asks for long history — max range is 20 years. Returns { symbol, interval, range, count, data: [{time, open, high, low, close, volume}] }.",
     inputSchema: z.toJSONSchema(GetCandlesInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
 ];
 

@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { McpContext } from "../context";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
 
 const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
 const symbolRegex = /^[A-Z0-9.^=\-]{1,20}$/;
@@ -51,24 +52,28 @@ export const optionsFlowTools: Tool[] = [
     description:
       "Return the daily options flow table for one trading day — aggregated call/put volume, premium, implied volatility, and consecutive-day streaks for every notable symbol. Use when the user asks 'what's the options flow today' or 'show me the top premium plays'. Each row includes call_put_volume_ratio (bullish if > 1.0), consecutive_days (streak length), total_premium (dollar size), call_avg_iv/put_avg_iv. Returns { date, sort, limit, data: [...], stats, dates }. Tier: Pro only — Basic users get 403.",
     inputSchema: z.toJSONSchema(GetOptionsFlowOverviewInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "get_options_flow_timeline",
     description:
       "Return the historical options flow for a single stock — most recent days first. Use when the user asks 'show me X's options flow history' or 'how long has X been bullish'. Returns { symbol, limit, count, data: [daily rows, newest first] }. Tier: Pro only.",
     inputSchema: z.toJSONSchema(GetOptionsFlowTimelineInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "get_options_flow_signals",
     description:
       "Return curated high-conviction options flow signals for a date range. These are the strongest setups filtered by long streaks, large premium, and screener confluence. Each signal includes performance tracking (max_high_pct, max_drawdown_pct). Use when the user asks 'what are today's signals' or 'show me bullish setups from last week'. If date_from/date_to omitted, returns last 60 days. Returns { count, signals: [...] }. Tier: Pro only.",
     inputSchema: z.toJSONSchema(GetOptionsFlowSignalsInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "get_unusual_options_activity",
     description:
       "Return individual options contracts flagged as unusual (Vol/OI > 1.5). Each row is one contract, not one stock. Use when the user wants contract-level detail. Filter by symbol, side (call/put/both), minimum vol/oi, minimum premium, or max days to expiration. For aggregated stock-level flow use get_options_flow_overview instead. Returns { date, count, contracts: [...] }.",
     inputSchema: z.toJSONSchema(GetUnusualOptionsActivityInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
 ];
 

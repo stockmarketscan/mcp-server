@@ -2,6 +2,7 @@ import { z } from "zod";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { McpContext } from "../context";
 import { McpError } from "../errors";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
 
 const symbolRegex = /^[A-Z0-9.^=\-]{1,20}$/;
 
@@ -83,12 +84,14 @@ export const compositeTools: Tool[] = [
     description:
       "Return a comprehensive report on a single stock in one call — metadata, screener appearances, chart patterns, options flow, signal status, price summary, and upcoming earnings. THIS IS THE PREFERRED FIRST TOOL when a user asks about a single stock. It replaces 5-7 separate tool calls (get_stock_info + get_chart_patterns + get_options_flow_timeline + get_options_flow_signals + screener lookups + get_candles). Do NOT also call the primitives after calling this — the composite already has everything. Parallel fetch under the hood, graceful partial failures (if one source errors, that section returns null with a note). Returns { symbol, info, screeners, patterns, options_flow, signal, candle_summary, upcoming_earnings, overall_bias }. overall_bias is a heuristic hint, not financial advice.",
     inputSchema: z.toJSONSchema(GetStockReportInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "search_setups",
     description:
       "Find the strongest trading setups today by combining options flow signals and screener confluence into a ranked list. Use when the user asks 'what should I trade today', 'best setups', 'top bullish plays'. Returns a ranked list with a composite score (signal strength + screener confluence + streak length). Present the top 3-5 to the user with narrative context, don't dump the raw JSON. Use get_stock_report if the user wants to dig deeper into any specific result. Returns { side, date, count, setups: [{symbol, score, signal, screeners_hit, ...}] }.",
     inputSchema: z.toJSONSchema(SearchSetupsInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
 ];
 

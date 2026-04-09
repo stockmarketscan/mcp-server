@@ -1,6 +1,7 @@
 import { z } from "zod";
 import type { Tool } from "@modelcontextprotocol/sdk/types.js";
 import type { McpContext } from "../context";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
 
 export const ScreenersInputSchema = z.object({
   slug: z.string().min(1).describe("The screener slug, e.g. 'hot-prospects', 'golden-cross', 'rsi-oversold'"),
@@ -28,18 +29,21 @@ export const screenersTools: Tool[] = [
     description:
       "Return metadata for all 24 stock screeners on the platform, including each screener's slug, name, description, category, and tier. Use this to discover which screeners are available before calling get_screener_data. Call this once per session — the list changes very rarely. Returns { tier, total, accessible, screeners: [...] }.",
     inputSchema: { type: "object", properties: {}, required: [] },
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "get_screener_data",
     description:
       "Return the current rows of a single stock screener for its latest data date. Use this when the user asks about a specific screener like 'hot prospects' or 'golden cross'. Common slugs: hot-prospects, golden-cross, death-cross, rsi-oversold, rsi-overbought, defensive-stocks, dividend-prospects, j-pattern, nearing-6-month-highs, week-52-high-top-picks, top-penny-pops, strong-volume-gains, top-tech-stocks, fundamentally-fine, income-and-growth, best-reits. If you don't know the slug, call list_screeners first. Returns { screener, pagination, data: [stock rows] }.",
     inputSchema: z.toJSONSchema(ScreenersInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
   {
     name: "search_stocks_in_screeners",
     description:
       "Find stocks that appear in multiple screeners simultaneously. Powerful for high-confidence picks where the user wants confluence across strategies. Use when the user asks 'which stocks are in both X and Y' or 'find stocks in 3+ bullish screeners'. Returns { screeners_queried, mode, count, symbols: [{symbol, screeners, match_count}] }. Intersection mode returns only stocks in ALL listed screeners; union returns stocks in ANY.",
     inputSchema: z.toJSONSchema(SearchStocksInScreenersInputSchema) as Tool["inputSchema"],
+    annotations: READ_ONLY_ANNOTATIONS,
   },
 ];
 

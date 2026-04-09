@@ -3,11 +3,55 @@ import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
+import { StreamableHTTPServerTransport } from "@modelcontextprotocol/sdk/server/streamableHttp.js";
 import { ApiClient } from "../client/apiClient";
 import { TtlCache } from "../cache";
 import { registerAllTools } from "../tools";
 import { API_BASE_URL, normalizeApiKey } from "../auth";
 import { McpError } from "../errors";
+
+function getServerInfo() {
+  return {
+    name: "stockmarketscan",
+    version: "1.0.2",
+    title: "StockMarketScan",
+    description:
+      "18 tools for US stock screeners, chart patterns, options flow signals and equities research.",
+    websiteUrl: "https://stockmarketscan.com/mcp",
+    icons: [
+      {
+        src: "https://stockmarketscan.com/icon.svg",
+        mimeType: "image/svg+xml",
+        sizes: ["any"],
+      },
+      {
+        src: "https://stockmarketscan.com/favicon.ico",
+        mimeType: "image/x-icon",
+        sizes: ["16x16", "32x32", "48x48", "64x64"],
+      },
+    ],
+  };
+}
+
+function extractApiKey(req: Request): string | null {
+  const headerKey = req.header("X-API-Key") || req.header("x-api-key");
+  const authHeader = req.header("Authorization") || req.header("authorization");
+  let bearerKey: string | undefined;
+  if (authHeader && /^Bearer\s+/i.test(authHeader)) {
+    bearerKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+  }
+  return normalizeApiKey(headerKey || bearerKey);
+}
+
+function buildServer(apiKey: string | null): Server {
+  const server = new Server(getServerInfo(), { capabilities: { tools: {} } });
+  const ctx = {
+    apiClient: new ApiClient({ apiKey, baseUrl: API_BASE_URL }),
+    cache: new TtlCache(process.env.MCP_CACHE_ENABLED !== "false"),
+  };
+  registerAllTools(server, ctx);
+  return server;
+}
 
 /**
  * HTTP/SSE transport for multi-user hosted deployment.
@@ -29,6 +73,35 @@ const MCP_SERVER_URL = process.env.MCP_PUBLIC_URL || "https://mcp.stockmarketsca
 
 export async function runHttp(port: number): Promise<void> {
   const app = express();
+
+  // ── CORS ─────────────────────────────────────────────────────────
+  // Browser-based MCP clients (claude.ai Custom Connectors, web-based
+  // MCP inspectors) call /mcp directly from the page. Without CORS the
+  // browser blocks the SSE stream and the POST messages with a preflight
+  // failure. We allow any origin because our auth is header/bearer based
+  // and we don't rely on cookies, so there's no CSRF surface to protect.
+  app.use((req, res, next) => {
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      "GET, POST, OPTIONS",
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      "Content-Type, Authorization, X-API-Key, Accept, Cache-Control, Last-Event-ID, MCP-Session-Id, MCP-Protocol-Version",
+    );
+    res.setHeader(
+      "Access-Control-Expose-Headers",
+      "MCP-Session-Id, MCP-Protocol-Version",
+    );
+    res.setHeader("Access-Control-Max-Age", "86400");
+    if (req.method === "OPTIONS") {
+      res.status(204).end();
+      return;
+    }
+    next();
+  });
+
   // Root health check (for Railway)
   app.get("/", (_req, res) => {
     res.json({ service: "stockmarketscan-mcp", status: "ok" });
@@ -79,29 +152,14 @@ export async function runHttp(port: number): Promise<void> {
     });
   });
 
-  // ── MCP SSE connection ───────────────────────────────────────────
+  // ── MCP SSE (legacy transport, 2024-11-05) ───────────────────────
+  // Still supported for Claude Desktop, Cursor and Continue which all
+  // speak the SSE transport out of the box. New clients should prefer
+  // the Streamable HTTP transport below.
   app.get("/mcp", async (req: Request, res: Response) => {
-    // API key is optional — anonymous consumers can connect and use the
-    // free-tier tools (list_screeners, get_stock_info, explain_concept,
-    // ping). Gated tools return a NEEDS_SUBSCRIPTION error that tells the
-    // user to sign up at stockmarketscan.com.
-    //
-    // Two credential channels are supported:
-    //   1. X-API-Key: sms_xxx       (Claude Desktop, Cursor, Continue)
-    //   2. Authorization: Bearer sms_xxx  (claude.ai Web via OAuth 2.1)
-    // Both carry the same sms_* value — the OAuth token endpoint just
-    // hands back the user's existing/newly-created API key.
-    const headerKey = req.header("X-API-Key") || req.header("x-api-key");
-    const authHeader = req.header("Authorization") || req.header("authorization");
-    let bearerKey: string | undefined;
-    if (authHeader && /^Bearer\s+/i.test(authHeader)) {
-      bearerKey = authHeader.replace(/^Bearer\s+/i, "").trim();
-    }
-    const rawKey = headerKey || bearerKey;
-
     let apiKey: string | null;
     try {
-      apiKey = normalizeApiKey(rawKey);
+      apiKey = extractApiKey(req);
     } catch (err) {
       if (err instanceof McpError) {
         res.status(400).json(err.toJSON());
@@ -115,36 +173,7 @@ export async function runHttp(port: number): Promise<void> {
     const transport = new SSEServerTransport(`/mcp/message?sid=${sessionId}`, res);
     TRANSPORT_SESSIONS.set(sessionId, transport);
 
-    const server = new Server(
-      {
-        name: "stockmarketscan",
-        version: "1.0.1",
-        title: "StockMarketScan",
-        description:
-          "18 tools for US stock screeners, chart patterns, options flow signals and equities research.",
-        websiteUrl: "https://stockmarketscan.com/mcp",
-        icons: [
-          {
-            src: "https://stockmarketscan.com/icon.svg",
-            mimeType: "image/svg+xml",
-            sizes: ["any"],
-          },
-          {
-            src: "https://stockmarketscan.com/favicon.ico",
-            mimeType: "image/x-icon",
-            sizes: ["16x16", "32x32", "48x48", "64x64"],
-          },
-        ],
-      },
-      { capabilities: { tools: {} } },
-    );
-
-    const ctx = {
-      apiClient: new ApiClient({ apiKey, baseUrl: API_BASE_URL }),
-      cache: new TtlCache(process.env.MCP_CACHE_ENABLED !== "false"),
-    };
-
-    registerAllTools(server, ctx);
+    const server = buildServer(apiKey);
 
     res.on("close", () => {
       TRANSPORT_SESSIONS.delete(sessionId);
@@ -154,7 +183,7 @@ export async function runHttp(port: number): Promise<void> {
     await server.connect(transport);
   });
 
-  // ── MCP message POST (client → server) ──────────────────────────
+  // ── MCP SSE message POST (client → server) ──────────────────────
   // Note: we run express.json() here so Express validates the payload and
   // enforces a size limit, but then we pass the already-parsed body as the
   // third argument to handlePostMessage. If we skipped that, the MCP SDK
@@ -167,6 +196,49 @@ export async function runHttp(port: number): Promise<void> {
       return;
     }
     await transport.handlePostMessage(req, res, req.body);
+  });
+
+  // ── MCP Streamable HTTP (2025-06-18 transport) ────────────────────
+  // Single POST endpoint; each request is self-contained and stateless.
+  // This is the transport Claude.ai Connectors and the modern MCP
+  // inspector prefer. Stateless mode means we spin up a fresh Server
+  // per request — cheap because each session is already isolated and
+  // carries its own ApiClient with the consumer's key.
+  app.post("/mcp", express.json({ limit: "1mb" }), async (req: Request, res: Response) => {
+    let apiKey: string | null;
+    try {
+      apiKey = extractApiKey(req);
+    } catch (err) {
+      if (err instanceof McpError) {
+        res.status(400).json(err.toJSON());
+        return;
+      }
+      res.status(500).json({ error: "Auth failure", code: "INTERNAL_ERROR" });
+      return;
+    }
+
+    const transport = new StreamableHTTPServerTransport({
+      sessionIdGenerator: undefined, // stateless
+    });
+    const server = buildServer(apiKey);
+
+    res.on("close", () => {
+      transport.close().catch(() => {});
+      server.close().catch(() => {});
+    });
+
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (err) {
+      console.error("[mcp] streamable-http error:", err);
+      if (!res.headersSent) {
+        res.status(500).json({
+          error: "Internal server error",
+          code: "INTERNAL_ERROR",
+        });
+      }
+    }
   });
 
   await new Promise<void>((resolve) => {

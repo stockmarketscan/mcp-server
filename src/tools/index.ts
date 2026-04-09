@@ -7,6 +7,8 @@ import {
 import { ZodError } from "zod";
 import type { McpContext } from "../context";
 import { McpError } from "../errors";
+import { READ_ONLY_ANNOTATIONS } from "./annotations";
+import { stringifyWithLimit } from "./responseLimit";
 
 import {
   screenersTools,
@@ -43,6 +45,7 @@ const PING_TOOL: Tool = {
   description:
     "Minimal sanity check. Returns { status, version, timestamp, cache_size }. No auth needed. Use this to verify the MCP server is reachable and responsive.",
   inputSchema: { type: "object", properties: {}, required: [] },
+  annotations: { ...READ_ONLY_ANNOTATIONS, openWorldHint: false },
 };
 
 const ALL_TOOLS: Tool[] = [
@@ -103,9 +106,10 @@ export function registerAllTools(server: Server, ctx: McpContext): void {
       }
 
       const result = await handler(ctx, args);
+      const { text } = stringifyWithLimit(name, result);
 
       return {
-        content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+        content: [{ type: "text", text }],
       };
     } catch (err) {
       if (err instanceof ZodError) {
