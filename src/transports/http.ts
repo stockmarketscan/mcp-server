@@ -75,6 +75,10 @@ export async function runHttp(port: number): Promise<void> {
   });
 
   // ── MCP message POST (client → server) ──────────────────────────
+  // Note: we run express.json() here so Express validates the payload and
+  // enforces a size limit, but then we pass the already-parsed body as the
+  // third argument to handlePostMessage. If we skipped that, the MCP SDK
+  // would try to re-read the stream and fail with "stream is not readable".
   app.post("/mcp/message", express.json({ limit: "1mb" }), async (req: Request, res: Response) => {
     const sid = (req.query.sid as string) || "";
     const transport = TRANSPORT_SESSIONS.get(sid);
@@ -82,7 +86,7 @@ export async function runHttp(port: number): Promise<void> {
       res.status(404).json({ error: "Unknown session", code: "NOT_FOUND" });
       return;
     }
-    await transport.handlePostMessage(req, res);
+    await transport.handlePostMessage(req, res, req.body);
   });
 
   await new Promise<void>((resolve) => {
