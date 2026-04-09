@@ -24,6 +24,9 @@ import { McpError } from "../errors";
 
 const TRANSPORT_SESSIONS = new Map<string, SSEServerTransport>();
 
+const MAIN_APP_URL = process.env.STOCKMARKETSCAN_APP_URL || "https://stockmarketscan.com";
+const MCP_SERVER_URL = process.env.MCP_PUBLIC_URL || "https://mcp.stockmarketscan.com";
+
 export async function runHttp(port: number): Promise<void> {
   const app = express();
   // Root health check (for Railway)
@@ -34,13 +37,53 @@ export async function runHttp(port: number): Promise<void> {
     res.json({ service: "stockmarketscan-mcp", status: "ok", version: "1.0.0" });
   });
 
+  // ── OAuth 2.1 Discovery (RFC 8414 + MCP 2025-06-18 spec) ──────────
+  // Claude.ai and other MCP clients hit these well-known endpoints before
+  // they attempt to connect, so they can discover that the server supports
+  // OAuth and figure out where to send the user for consent.
+  app.get("/.well-known/oauth-protected-resource", (_req, res) => {
+    res.json({
+      resource: MCP_SERVER_URL,
+      authorization_servers: [MAIN_APP_URL],
+      bearer_methods_supported: ["header"],
+      resource_documentation: `${MAIN_APP_URL}/mcp`,
+    });
+  });
+
+  app.get("/.well-known/oauth-authorization-server", (_req, res) => {
+    res.json({
+      issuer: MAIN_APP_URL,
+      authorization_endpoint: `${MAIN_APP_URL}/api/oauth/authorize`,
+      token_endpoint: `${MAIN_APP_URL}/api/oauth/token`,
+      registration_endpoint: `${MAIN_APP_URL}/api/oauth/register`,
+      response_types_supported: ["code"],
+      grant_types_supported: ["authorization_code"],
+      code_challenge_methods_supported: ["S256"],
+      token_endpoint_auth_methods_supported: ["none"],
+      scopes_supported: ["read"],
+    });
+  });
+
   // ── MCP SSE connection ───────────────────────────────────────────
   app.get("/mcp", async (req: Request, res: Response) => {
     // API key is optional — anonymous consumers can connect and use the
     // free-tier tools (list_screeners, get_stock_info, explain_concept,
     // ping). Gated tools return a NEEDS_SUBSCRIPTION error that tells the
     // user to sign up at stockmarketscan.com.
-    const rawKey = req.header("X-API-Key") || req.header("x-api-key");
+    //
+    // Two credential channels are supported:
+    //   1. X-API-Key: sms_xxx       (Claude Desktop, Cursor, Continue)
+    //   2. Authorization: Bearer sms_xxx  (claude.ai Web via OAuth 2.1)
+    // Both carry the same sms_* value — the OAuth token endpoint just
+    // hands back the user's existing/newly-created API key.
+    const headerKey = req.header("X-API-Key") || req.header("x-api-key");
+    const authHeader = req.header("Authorization") || req.header("authorization");
+    let bearerKey: string | undefined;
+    if (authHeader && /^Bearer\s+/i.test(authHeader)) {
+      bearerKey = authHeader.replace(/^Bearer\s+/i, "").trim();
+    }
+    const rawKey = headerKey || bearerKey;
+
     let apiKey: string | null;
     try {
       apiKey = normalizeApiKey(rawKey);
