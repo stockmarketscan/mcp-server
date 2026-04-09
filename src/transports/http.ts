@@ -116,8 +116,27 @@ export async function runHttp(port: number): Promise<void> {
     TRANSPORT_SESSIONS.set(sessionId, transport);
 
     const server = new Server(
-      { name: "stockmarketscan", version: "1.0.0" },
-      { capabilities: { tools: {} } }
+      {
+        name: "stockmarketscan",
+        version: "1.0.1",
+        title: "StockMarketScan",
+        description:
+          "18 tools for US stock screeners, chart patterns, options flow signals and equities research.",
+        websiteUrl: "https://stockmarketscan.com/mcp",
+        icons: [
+          {
+            src: "https://stockmarketscan.com/icon.svg",
+            mimeType: "image/svg+xml",
+            sizes: ["any"],
+          },
+          {
+            src: "https://stockmarketscan.com/favicon.ico",
+            mimeType: "image/x-icon",
+            sizes: ["16x16", "32x32", "48x48", "64x64"],
+          },
+        ],
+      },
+      { capabilities: { tools: {} } },
     );
 
     const ctx = {
