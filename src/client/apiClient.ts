@@ -1,7 +1,7 @@
-import { McpError } from "../errors";
+import { McpError, subscriptionRequiredError } from "../errors";
 
 export interface ApiClientOptions {
-  apiKey: string;
+  apiKey: string | null;
   baseUrl: string;
   timeoutMs?: number;
 }
@@ -10,12 +10,13 @@ export interface ApiClientOptions {
  * Thin fetch-based wrapper around /api/v1/*.
  *
  * Each MCP request creates its own ApiClient with the consumer's API key
- * (extracted from the X-API-Key header in HTTP mode, or env var in stdio
- * mode). The key is passed through to the underlying API, which handles
- * tier gating and rate limiting on its own.
+ * if they provided one. When the consumer did NOT provide a key, the
+ * wrapper still issues requests without the X-API-Key header; public
+ * endpoints succeed, gated endpoints return 401 which we convert into a
+ * user-friendly NEEDS_SUBSCRIPTION error pointing at the signup page.
  */
 export class ApiClient {
-  private apiKey: string;
+  private apiKey: string | null;
   private baseUrl: string;
   private timeoutMs: number;
 
@@ -23,6 +24,10 @@ export class ApiClient {
     this.apiKey = opts.apiKey;
     this.baseUrl = opts.baseUrl.replace(/\/$/, "");
     this.timeoutMs = opts.timeoutMs ?? 30_000;
+  }
+
+  get hasApiKey(): boolean {
+    return this.apiKey !== null;
   }
 
   async get<T>(
@@ -48,13 +53,15 @@ export class ApiClient {
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
 
     try {
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+      if (this.apiKey) headers["X-API-Key"] = this.apiKey;
+      if (body != null) headers["Content-Type"] = "application/json";
+
       const res = await fetch(url, {
         method,
-        headers: {
-          "X-API-Key": this.apiKey,
-          Accept: "application/json",
-          ...(body != null ? { "Content-Type": "application/json" } : {}),
-        },
+        headers,
         body: body != null ? JSON.stringify(body) : undefined,
         signal: controller.signal,
       });
@@ -91,9 +98,24 @@ export class ApiClient {
     const message = body.error || `HTTP ${res.status} from upstream`;
 
     if (res.status === 401) {
-      throw new McpError(message, body.code === "INVALID_API_KEY" ? "INVALID_API_KEY" : "MISSING_API_KEY");
+      // Anonymous consumer tried a gated endpoint — point them at the
+      // subscription flow instead of a generic 401.
+      if (!this.apiKey) {
+        throw subscriptionRequiredError("");
+      }
+      throw new McpError(
+        message,
+        body.code === "INVALID_API_KEY" ? "INVALID_API_KEY" : "MISSING_API_KEY",
+      );
     }
-    if (res.status === 403) throw new McpError(message, "TIER_UPGRADE_REQUIRED");
+    if (res.status === 403) {
+      // 403 with an API key = the key is valid but the plan doesn't cover
+      // this endpoint. Without an API key, treat as subscription-required.
+      if (!this.apiKey) {
+        throw subscriptionRequiredError("");
+      }
+      throw new McpError(message, "TIER_UPGRADE_REQUIRED");
+    }
     if (res.status === 404) throw new McpError(message, "NOT_FOUND");
     if (res.status === 429) throw new McpError(message, "RATE_LIMIT_EXCEEDED");
     if (res.status >= 500) throw new McpError(message, "UPSTREAM_ERROR");

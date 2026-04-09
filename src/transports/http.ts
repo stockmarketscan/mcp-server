@@ -6,7 +6,7 @@ import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { ApiClient } from "../client/apiClient";
 import { TtlCache } from "../cache";
 import { registerAllTools } from "../tools";
-import { API_BASE_URL, assertValidApiKey } from "../auth";
+import { API_BASE_URL, normalizeApiKey } from "../auth";
 import { McpError } from "../errors";
 
 /**
@@ -36,14 +36,17 @@ export async function runHttp(port: number): Promise<void> {
 
   // ── MCP SSE connection ───────────────────────────────────────────
   app.get("/mcp", async (req: Request, res: Response) => {
-    // Extract and validate the API key per-connection.
+    // API key is optional — anonymous consumers can connect and use the
+    // free-tier tools (list_screeners, get_stock_info, explain_concept,
+    // ping). Gated tools return a NEEDS_SUBSCRIPTION error that tells the
+    // user to sign up at stockmarketscan.com.
     const rawKey = req.header("X-API-Key") || req.header("x-api-key");
-    let apiKey: string;
+    let apiKey: string | null;
     try {
-      apiKey = assertValidApiKey(rawKey);
+      apiKey = normalizeApiKey(rawKey);
     } catch (err) {
       if (err instanceof McpError) {
-        res.status(err.code === "MISSING_API_KEY" ? 401 : 400).json(err.toJSON());
+        res.status(400).json(err.toJSON());
         return;
       }
       res.status(500).json({ error: "Auth failure", code: "INTERNAL_ERROR" });

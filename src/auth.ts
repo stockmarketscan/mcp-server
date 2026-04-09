@@ -7,8 +7,12 @@ import { McpError } from "./errors";
  *   - HTTP transport: X-API-Key header on each request
  *   - stdio transport: STOCKMARKETSCAN_API_KEY env var (single-user local mode)
  *
- * The MCP server just extracts the key, validates the format, and passes it
- * through to /api/v1/* on behalf of the consumer.
+ * API keys are OPTIONAL at the connection level. Consumers that connect
+ * without a key can still use the "free tier" tools (list_screeners,
+ * get_stock_info, explain_concept, ping). Tools that return paid content
+ * will respond with a NEEDS_SUBSCRIPTION error pointing at the signup page.
+ * This lets new users discover the platform via their LLM client before
+ * committing to a subscription.
  */
 
 export const API_BASE_URL =
@@ -19,21 +23,21 @@ export function envApiKey(): string | null {
   return process.env.STOCKMARKETSCAN_API_KEY || null;
 }
 
-export function assertValidApiKey(key: string | null | undefined): string {
-  if (!key) {
+/**
+ * Normalize an incoming API key. Returns the trimmed key if valid, null if
+ * absent, or throws if the format is clearly wrong (so the consumer gets a
+ * fast 400 instead of a silent 401 downstream).
+ */
+export function normalizeApiKey(key: string | null | undefined): string | null {
+  if (!key) return null;
+  const trimmed = key.trim();
+  if (!trimmed) return null;
+  if (!trimmed.startsWith("sms_") || trimmed.length < 20) {
     throw new McpError(
-      "Missing StockMarketScan API key. Generate one at " +
-        "https://stockmarketscan.com/settings and pass it either as the " +
-        "X-API-Key header (HTTP mode) or as the STOCKMARKETSCAN_API_KEY " +
-        "env var (stdio mode).",
-      "MISSING_API_KEY"
+      "Invalid API key format. Expected a key starting with 'sms_' (at least 20 chars). " +
+        "Remove the header to connect anonymously, or generate a valid key at https://stockmarketscan.com/settings.",
+      "INVALID_API_KEY",
     );
   }
-  if (!key.startsWith("sms_") || key.length < 20) {
-    throw new McpError(
-      "Invalid API key format. Expected a key starting with 'sms_'.",
-      "INVALID_API_KEY"
-    );
-  }
-  return key;
+  return trimmed;
 }
