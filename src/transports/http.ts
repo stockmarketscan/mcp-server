@@ -37,6 +37,21 @@ export async function runHttp(port: number): Promise<void> {
     res.json({ service: "stockmarketscan-mcp", status: "ok", version: "1.0.0" });
   });
 
+  // ── Brand assets ──────────────────────────────────────────────────
+  // MCP clients like Claude Code and Claude.ai show a favicon next to
+  // the connector name. They look it up by hitting /favicon.ico on the
+  // MCP server's own host, which by default 404s. Redirect both common
+  // paths to the main site's versioned assets.
+  app.get("/favicon.ico", (_req, res) => {
+    res.redirect(301, `${MAIN_APP_URL}/favicon.ico`);
+  });
+  app.get("/icon.svg", (_req, res) => {
+    res.redirect(301, `${MAIN_APP_URL}/icon.svg`);
+  });
+  app.get("/apple-touch-icon.png", (_req, res) => {
+    res.redirect(301, `${MAIN_APP_URL}/icon.svg`);
+  });
+
   // ── OAuth 2.1 Discovery (RFC 8414 + MCP 2025-06-18 spec) ──────────
   // Claude.ai and other MCP clients hit these well-known endpoints before
   // they attempt to connect, so they can discover that the server supports

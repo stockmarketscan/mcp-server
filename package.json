@@ -1,6 +1,6 @@
 {
   "name": "stockmarketscan-mcp-server",
-  "version": "1.0.5",
+  "version": "1.0.6",
   "description": "MCP server exposing StockMarketScan screeners, chart patterns, options flow signals and equities research as tools for Claude Desktop, Cursor, Continue and any other MCP client.",
   "license": "MIT",
   "homepage": "https://stockmarketscan.com/mcp",
